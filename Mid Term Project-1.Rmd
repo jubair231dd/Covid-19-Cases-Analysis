@@ -1,0 +1,306 @@
+---
+title: "Mid Term Project - 1"
+author: "Md Jubair Pantho"
+date: "2022-09-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Analysis of the Google Mobility and Covid-19 data for USA
+
+#Importing libraries
+```{r}
+rm(list = ls())
+library(tidyverse)
+library(lubridate)
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+```
+
+#Importing the Global Covid - 19 dataset
+```{r}
+tb = read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv")
+tb
+```
+
+#Gettting an overall view of the structure of the dataset
+```{r}
+str(tb[, 1:10])
+
+print(paste("There are", length(tb[1,]), "columns in the dataset"))
+```
+#Selecting columns of daily cases
+```{r}
+tb1 = tb %>% select(5:length(tb[1,])) %>% as.matrix()
+tb1 = as.data.frame(t(tb1))
+tb1
+```
+#Assigning country names to the columns 
+```{r}
+names(tb1) = tb$"Country/Region"
+tb1[, 1:10]
+```
+
+#Selecting target countries
+```{r}
+tb2 = tb1 %>% select(c("US", "Bangladesh"))
+head(tb2)
+```
+# Adding a new date column
+```{r}
+current_dates = names(tb)[5: length(tb[1,])]
+current_dates
+
+tb2$date = mdy(current_dates)
+tb2
+```
+
+#Changing the row names of the dataframe
+```{r}
+row.names(tb2) = tb2$date
+tb2
+```
+#Finding the start and end date from the dataframe
+```{r}
+print(paste("The start date is:", min(tb2$date)))
+print(paste("The most end date is:", max(tb2$date)))
+
+```
+
+#Plotting the overall USA Covid-19 cases over time
+```{r}
+ggplot(tb2, aes(x = date, y = tb2[,1])) + geom_point() + geom_smooth()
+```
+# Finding daily cases of USA
+```{r}
+DailyCases = c(0, diff(tb2[,1]))
+dailycases_usa = data.frame(DailyCases)
+dailycases_usa
+
+dailycases_usa$date = ymd(row.names(tb2))
+dailycases_usa
+
+row.names(dailycases_usa) = dailycases_usa$date
+dailycases_usa
+```
+#Plotting the daily cases of USA over time
+
+```{r}
+ggplot(dailycases_usa, aes(x = date , y = dailycases_usa[,1])) + geom_point(color="red") + stat_smooth(span =0.3) + ggtitle("USA daily cases over time") + xlab("Time") + ylab("Daily Cases")
+```
+
+# Loading the Google Mobility Data of USA
+```{r}
+GM20 = read_csv("2020_US_Region_Mobility_Report.csv")
+GM21 = read_csv("2021_US_Region_Mobility_Report.csv")
+GM22 = read_csv("2022_US_Region_Mobility_Report.csv")
+GM20
+```
+#Stacking the data frames 
+```{r}
+TbGm_all = rbind(GM20, GM21, GM22)
+TbGm_all
+
+TbGm_all_summarized1 = TbGm_all %>% select(-c(1, 3:8))
+TbGm_all_summarized1
+
+TbGm_all_summarized2 = TbGm_all_summarized1 %>% group_by(date) %>% summarise_if(is.numeric, mean, na.rm = TRUE)
+TbGm_all_summarized2
+```
+
+#Finding the start and end date from the dataframe
+```{r}
+print(paste("The start date is:", min(TbGm_all_summarized2$date)))
+print(paste("The most end date is:", max(TbGm_all_summarized2$date)))
+
+```
+
+#Filtering daily cases USA between this time frame
+```{r}
+start = ymd("2020/2/15")
+end = ymd("2022/9/16")
+
+US_daily_cases = dailycases_usa %>% filter(date>=start & date<=end)
+US_daily_cases
+```
+
+#Merging the Google Mobilty and Covid-19 data frame together
+```{r}
+GM_Cov_merged = merge.data.frame(US_daily_cases,TbGm_all_summarized2, by="date", all.y=TRUE)
+GM_Cov_merged
+
+row.names(GM_Cov_merged) = GM_Cov_merged$date
+GM_Cov_merged
+```
+
+#Scaling the data frame 
+```{r}
+GM_Cov_merged_scaled = data.frame(scale(GM_Cov_merged %>% select(2:8)))
+GM_Cov_merged_scaled
+
+GM_Cov_merged_scaled$date = GM_Cov_merged$date 
+GM_Cov_merged_scaled
+```
+
+#Plotting the Google Mobilty and Covid-19 daily cases 
+```{r}
+names(GM_Cov_merged_scaled)
+
+ select_columns = c("DailyCases", "parks_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline" )
+
+GM_Cov_merged_scaled_melt = melt(GM_Cov_merged_scaled, measure.vars = select_columns, value.names ="Values", variable.names = "Variable")
+GM_Cov_merged_scaled_melt
+
+ggplot(GM_Cov_merged_scaled_melt, aes(x = date, y = value, color = variable)) + stat_smooth(span = 0.2)
+
+```
+
+#Analysis of the Google Mobility and Covid-19 daily cases for Bangladesh 
+
+# Finding daily cases of Bangladesh
+```{r}
+DailyCases = c(0, diff(tb2[,2]))
+dailycases_BD = data.frame(DailyCases)
+dailycases_BD
+
+dailycases_BD$date = ymd(row.names(tb2))
+dailycases_BD
+
+row.names(dailycases_BD) = dailycases_BD$date
+dailycases_BD
+```
+
+#Plotting the daily cases of Bangladesh over time 
+```{r}
+ggplot(dailycases_BD, aes(x = date , y = dailycases_BD[,1])) + geom_point(color = "red") + stat_smooth(span = 0.3) + ggtitle("Daily Cases of Bangladesh Over Time") + xlab('Time') + ylab('Daily Cases')
+```
+
+# Loading the Google Mobility Data of Bangladesh
+```{r}
+GM20_BD = read_csv("2020_BD_Region_Mobility_Report.csv")
+GM21_BD = read_csv("2021_BD_Region_Mobility_Report.csv")
+GM22_BD = read_csv("2022_BD_Region_Mobility_Report.csv")
+GM20_BD
+```
+
+#Stacking the data frames 
+```{r}
+TbGm_all1 = rbind(GM20_BD, GM21_BD, GM22_BD)
+TbGm_all1
+
+TbGm_all_summarized11 = TbGm_all1 %>% select(-c(1, 3:8))
+TbGm_all_summarized11
+
+TbGm_all_summarized21 = TbGm_all_summarized11 %>% group_by(date) %>% summarise_if(is.numeric, mean, na.rm = TRUE)
+TbGm_all_summarized21
+```
+
+#Finding the start and end date from the dataframe
+```{r}
+print(paste("The start date is:", min(TbGm_all_summarized21$date)))
+print(paste("The most end date is:", max(TbGm_all_summarized21$date)))
+
+```
+
+#Filtering daily cases BD between this time frame
+```{r}
+start = ymd("2020/2/15")
+end = ymd("2022/9/16")
+
+BD_daily_cases = dailycases_BD %>% filter(date>=start & date<=end)
+BD_daily_cases
+```
+#Merging the Google Mobilty and Covid-19 data frame together
+```{r}
+GM_Cov_merged1 = merge.data.frame(BD_daily_cases,TbGm_all_summarized21, by="date", all.y=TRUE)
+GM_Cov_merged1
+
+row.names(GM_Cov_merged1) = GM_Cov_merged1$date
+GM_Cov_merged1
+```
+#Scaling the data frame 
+```{r}
+GM_Cov_merged_scaled1 = data.frame(scale(GM_Cov_merged1 %>% select(2:8)))
+GM_Cov_merged_scaled1
+
+GM_Cov_merged_scaled1$date = GM_Cov_merged1$date 
+GM_Cov_merged_scaled1
+```
+
+#Plotting the Google Mobilty and Covid-19 daily cases of Bangladesh
+```{r}
+names(GM_Cov_merged_scaled1)
+
+ select_columns = c("DailyCases", "parks_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline" )
+
+GM_Cov_merged_scaled_melt1 = melt(GM_Cov_merged_scaled1, measure.vars = select_columns, value.names ="Values", variable.names = "Variable")
+GM_Cov_merged_scaled_melt1
+
+ggplot(GM_Cov_merged_scaled_melt1, aes(x = date, y = value, color = variable)) + stat_smooth(span = 0.2)
+
+```
+
+
+
